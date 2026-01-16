@@ -19,6 +19,7 @@ import (
 // service like LocalStack. This allows using LocalStack as the local cache layer.
 type LocalStackBackend struct {
 	client *s3.Client
+	region string
 }
 
 // NewLocalStackBackend creates a backend that talks to LocalStack or any S3-compatible service.
@@ -36,7 +37,7 @@ func NewLocalStackBackend(endpoint, region string) (*LocalStackBackend, error) {
 		o.UsePathStyle = true
 	})
 
-	return &LocalStackBackend{client: client}, nil
+	return &LocalStackBackend{client: client, region: region}, nil
 }
 
 // isS3KeyNotFound checks if an error indicates the key was not found
@@ -222,9 +223,18 @@ func (b *LocalStackBackend) BucketExists(name string) (bool, error) {
 func (b *LocalStackBackend) CreateBucket(name string) error {
 	ctx := context.Background()
 
-	_, err := b.client.CreateBucket(ctx, &s3.CreateBucketInput{
+	input := &s3.CreateBucketInput{
 		Bucket: aws.String(name),
-	})
+	}
+
+	// For any region other than us-east-1, we must specify the LocationConstraint
+	if b.region != "" {
+		input.CreateBucketConfiguration = &s3types.CreateBucketConfiguration{
+			LocationConstraint: s3types.BucketLocationConstraint(b.region),
+		}
+	}
+
+	_, err := b.client.CreateBucket(ctx, input)
 	return err
 }
 
@@ -340,4 +350,3 @@ func (b *LocalStackBackend) DeleteMulti(bucketName string, objects ...string) (g
 
 	return gofakes3.MultiDeleteResult{}, err
 }
-
