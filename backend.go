@@ -67,6 +67,7 @@ func (b *LazyBackend) GetObject(bucketName, objectName string, rangeRequest *gof
 
 	// Check if it's a "not found" error vs other errors
 	if !isNotFound(err) {
+		log.Printf("[LOCAL ERROR] %s/%s: %v", bucketName, objectName, err)
 		return nil, err
 	}
 
@@ -118,6 +119,7 @@ func (b *LazyBackend) HeadObject(bucketName, objectName string) (*gofakes3.Objec
 	}
 
 	if !isNotFound(err) {
+		log.Printf("[LOCAL HEAD ERROR] %s/%s: %v", bucketName, objectName, err)
 		return nil, err
 	}
 

@@ -39,12 +39,17 @@ func NewLocalStackBackend(endpoint, region string) (*LocalStackBackend, error) {
 	return &LocalStackBackend{client: client}, nil
 }
 
-// isS3NotFound checks if an error indicates the object or bucket was not found
-func isS3NotFound(err error) bool {
+// isS3KeyNotFound checks if an error indicates the key was not found
+func isS3KeyNotFound(err error) bool {
 	var noSuchKey *s3types.NoSuchKey
-	var noSuchBucket *s3types.NoSuchBucket
 	var notFound *s3types.NotFound
-	return errors.As(err, &noSuchKey) || errors.As(err, &noSuchBucket) || errors.As(err, &notFound)
+	return errors.As(err, &noSuchKey) || errors.As(err, &notFound)
+}
+
+// isS3BucketNotFound checks if an error indicates the bucket was not found
+func isS3BucketNotFound(err error) bool {
+	var noSuchBucket *s3types.NoSuchBucket
+	return errors.As(err, &noSuchBucket)
 }
 
 func (b *LocalStackBackend) GetObject(bucketName, objectName string, rangeRequest *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {
@@ -68,7 +73,10 @@ func (b *LocalStackBackend) GetObject(bucketName, objectName string, rangeReques
 
 	obj, err := b.client.GetObject(ctx, input)
 	if err != nil {
-		if isS3NotFound(err) {
+		if isS3BucketNotFound(err) {
+			return nil, gofakes3.BucketNotFound(bucketName)
+		}
+		if isS3KeyNotFound(err) {
 			return nil, gofakes3.KeyNotFound(objectName)
 		}
 		return nil, fmt.Errorf("GetObject %s/%s: %w", bucketName, objectName, err)
@@ -85,7 +93,10 @@ func (b *LocalStackBackend) HeadObject(bucketName, objectName string) (*gofakes3
 		Key:    aws.String(objectName),
 	})
 	if err != nil {
-		if isS3NotFound(err) {
+		if isS3BucketNotFound(err) {
+			return nil, gofakes3.BucketNotFound(bucketName)
+		}
+		if isS3KeyNotFound(err) {
 			return nil, gofakes3.KeyNotFound(objectName)
 		}
 		return nil, fmt.Errorf("HeadObject %s/%s: %w", bucketName, objectName, err)
@@ -215,7 +226,7 @@ func (b *LocalStackBackend) BucketExists(name string) (bool, error) {
 		Bucket: aws.String(name),
 	})
 	if err != nil {
-		if isS3NotFound(err) {
+		if isS3BucketNotFound(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("HeadBucket %s: %w", name, err)
