@@ -82,7 +82,7 @@ func (b *LocalStackBackend) GetObject(bucketName, objectName string, rangeReques
 		return nil, fmt.Errorf("GetObject %s/%s: %w", bucketName, objectName, err)
 	}
 
-	return s3OutputToGofakes3Object(objectName, obj), nil
+	return getOutputToObject(objectName, obj), nil
 }
 
 func (b *LocalStackBackend) HeadObject(bucketName, objectName string) (*gofakes3.Object, error) {
@@ -102,22 +102,7 @@ func (b *LocalStackBackend) HeadObject(bucketName, objectName string) (*gofakes3
 		return nil, fmt.Errorf("HeadObject %s/%s: %w", bucketName, objectName, err)
 	}
 
-	meta := make(map[string]string)
-	if obj.ContentType != nil {
-		meta["Content-Type"] = *obj.ContentType
-	}
-
-	var size int64
-	if obj.ContentLength != nil {
-		size = *obj.ContentLength
-	}
-
-	return &gofakes3.Object{
-		Name:     objectName,
-		Metadata: meta,
-		Size:     size,
-		Contents: io.NopCloser(&emptyReader{}),
-	}, nil
+	return headOutputToObject(objectName, obj), nil
 }
 
 func (b *LocalStackBackend) CopyObject(srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (gofakes3.CopyObjectResult, error) {
@@ -356,25 +341,3 @@ func (b *LocalStackBackend) DeleteMulti(bucketName string, objects ...string) (g
 	return gofakes3.MultiDeleteResult{}, err
 }
 
-// s3OutputToGofakes3Object converts an S3 GetObjectOutput to a gofakes3.Object
-func s3OutputToGofakes3Object(name string, obj *s3.GetObjectOutput) *gofakes3.Object {
-	meta := make(map[string]string)
-	if obj.ContentType != nil {
-		meta["Content-Type"] = *obj.ContentType
-	}
-	for k, v := range obj.Metadata {
-		meta[k] = v
-	}
-
-	var size int64
-	if obj.ContentLength != nil {
-		size = *obj.ContentLength
-	}
-
-	return &gofakes3.Object{
-		Name:     name,
-		Metadata: meta,
-		Size:     size,
-		Contents: obj.Body,
-	}
-}

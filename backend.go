@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -133,23 +135,7 @@ func (b *LazyBackend) HeadObject(bucketName, objectName string) (*gofakes3.Objec
 		return nil, gofakes3.KeyNotFound(objectName)
 	}
 
-	// Return a minimal Object for HEAD response
-	meta := make(map[string]string)
-	if awsObj.ContentType != nil {
-		meta["Content-Type"] = *awsObj.ContentType
-	}
-
-	var size int64
-	if awsObj.ContentLength != nil {
-		size = *awsObj.ContentLength
-	}
-
-	return &gofakes3.Object{
-		Name:     objectName,
-		Metadata: meta,
-		Size:     size,
-		Contents: io.NopCloser(&emptyReader{}),
-	}, nil
+	return headOutputToObject(objectName, awsObj), nil
 }
 
 // CopyObject ensures source exists locally (triggering lazy fetch if needed), then copies.
@@ -200,6 +186,77 @@ func (b *LazyBackend) DeleteObject(bucketName, objectName string) (gofakes3.Obje
 
 func (b *LazyBackend) DeleteMulti(bucketName string, objects ...string) (gofakes3.MultiDeleteResult, error) {
 	return b.local.DeleteMulti(bucketName, objects...)
+}
+
+// headOutputToObject converts an S3 HeadObjectOutput to a gofakes3.Object
+func headOutputToObject(name string, obj *s3.HeadObjectOutput) *gofakes3.Object {
+	meta := make(map[string]string)
+	if obj.ContentType != nil {
+		meta["Content-Type"] = *obj.ContentType
+	}
+
+	var size int64
+	if obj.ContentLength != nil {
+		size = *obj.ContentLength
+	}
+
+	var versionID gofakes3.VersionID
+	if obj.VersionId != nil {
+		versionID = gofakes3.VersionID(*obj.VersionId)
+	}
+
+	return &gofakes3.Object{
+		Name:           name,
+		Metadata:       meta,
+		Size:           size,
+		Contents:       io.NopCloser(&emptyReader{}),
+		Hash:           parseETagToHash(obj.ETag),
+		VersionID:      versionID,
+		IsDeleteMarker: obj.DeleteMarker != nil && *obj.DeleteMarker,
+	}
+}
+
+// getOutputToObject converts an S3 GetObjectOutput to a gofakes3.Object
+func getOutputToObject(name string, obj *s3.GetObjectOutput) *gofakes3.Object {
+	meta := make(map[string]string)
+	if obj.ContentType != nil {
+		meta["Content-Type"] = *obj.ContentType
+	}
+	for k, v := range obj.Metadata {
+		meta[k] = v
+	}
+
+	var size int64
+	if obj.ContentLength != nil {
+		size = *obj.ContentLength
+	}
+
+	var versionID gofakes3.VersionID
+	if obj.VersionId != nil {
+		versionID = gofakes3.VersionID(*obj.VersionId)
+	}
+
+	return &gofakes3.Object{
+		Name:           name,
+		Metadata:       meta,
+		Size:           size,
+		Contents:       obj.Body,
+		Hash:           parseETagToHash(obj.ETag),
+		VersionID:      versionID,
+		IsDeleteMarker: obj.DeleteMarker != nil && *obj.DeleteMarker,
+	}
+}
+
+// parseETagToHash converts an S3 ETag (hex MD5 in quotes) to raw hash bytes
+func parseETagToHash(etag *string) []byte {
+	if etag == nil {
+		return nil
+	}
+	trimmed := strings.Trim(*etag, "\"")
+	if h, err := hex.DecodeString(trimmed); err == nil {
+		return h
+	}
+	return nil
 }
 
 // emptyReader returns EOF immediately, used for HEAD responses
