@@ -1,0 +1,30 @@
+# s3lazy configuration example
+# Copy to config.yaml and set S3LAZY_CONFIG_FILE=/path/to/config.yaml
+
+# Server listen address
+listen_addr: ":9000"
+
+# Backend type: "local" (disk-based) or "localstack" (external LocalStack)
+backend_type: "local"
+
+# Local disk backend settings (only used when backend_type is "local")
+data_dir: "/data"
+
+# LocalStack settings (only used when backend_type is "localstack")
+localstack_endpoint: "http://localhost:4566"
+
+# AWS region for upstream S3 access
+aws_region: "us-east-1"
+
+# Buckets to create on startup
+# These buckets will be created in the local backend when s3lazy starts
+init_buckets:
+  - "my-dev-bucket"
+  - "another-bucket"
+
+# Bucket name mappings
+# Map local bucket names to different AWS bucket names
+# Useful when your dev bucket has a different name than production
+bucket_mappings:
+  my-dev-bucket: "production-bucket-name"
+  test-data: "prod-test-data-bucket"
