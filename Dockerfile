@@ -5,7 +5,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY *.go ./
-RUN CGO_ENABLED=0 go build -o s3lazy .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o s3lazy .
 
 FROM alpine:latest
 
