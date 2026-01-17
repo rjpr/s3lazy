@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -123,7 +124,7 @@ func createLocalBackend(cfg *Config) (gofakes3.Backend, error) {
 		log.Printf("Using LocalStack backend at %s", cfg.LocalStackEndpoint)
 		return NewLocalStackBackend(cfg.LocalStackEndpoint, cfg.AWSRegion)
 
-	default:
+	case "local":
 		log.Printf("Using disk-based backend at %s", cfg.DataDir)
 
 		// Ensure data directory exists
@@ -134,6 +135,9 @@ func createLocalBackend(cfg *Config) (gofakes3.Backend, error) {
 		// Create filesystem-based backend using afero
 		fs := afero.NewBasePathFs(afero.NewOsFs(), cfg.DataDir)
 		return s3afero.MultiBucket(fs)
+
+	default:
+		return nil, fmt.Errorf("unknown backend type: %q (valid options: local, localstack)", cfg.BackendType)
 	}
 }
 
