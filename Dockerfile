@@ -19,11 +19,6 @@ USER s3lazy
 WORKDIR /app
 COPY --from=builder /app/s3lazy .
 
-# Default configuration
-ENV S3LAZY_LISTEN_ADDR=:9000
-ENV S3LAZY_BACKEND=local
-ENV S3LAZY_DATA_DIR=/data
-
 EXPOSE 9000
 VOLUME ["/data"]
 
