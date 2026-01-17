@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/johannesboyne/gofakes3"
 )
 
@@ -40,20 +42,6 @@ func NewLocalStackBackend(endpoint, region string) (*LocalStackBackend, error) {
 	return &LocalStackBackend{client: client, region: region}, nil
 }
 
-// isS3KeyNotFound checks if an error indicates the key was not found
-func isS3KeyNotFound(err error) bool {
-	var noSuchKey *s3types.NoSuchKey
-	var notFound *s3types.NotFound
-	return errors.As(err, &noSuchKey) || errors.As(err, &notFound)
-}
-
-// isS3BucketNotFound checks if an error indicates the bucket was not found
-func isS3BucketNotFound(err error) bool {
-	var noSuchBucket *s3types.NoSuchBucket
-	var notFound *s3types.NotFound
-	return errors.As(err, &noSuchBucket) || errors.As(err, &notFound)
-}
-
 func (b *LocalStackBackend) GetObject(bucketName, objectName string, rangeRequest *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {
 	ctx := context.Background()
 
@@ -75,13 +63,7 @@ func (b *LocalStackBackend) GetObject(bucketName, objectName string, rangeReques
 
 	obj, err := b.client.GetObject(ctx, input)
 	if err != nil {
-		if isS3BucketNotFound(err) {
-			return nil, gofakes3.BucketNotFound(bucketName)
-		}
-		if isS3KeyNotFound(err) {
-			return nil, gofakes3.KeyNotFound(objectName)
-		}
-		return nil, fmt.Errorf("GetObject %s/%s: %w", bucketName, objectName, err)
+		return nil, s3ErrorToGofakes3(err, bucketName, objectName)
 	}
 
 	return getOutputToObject(objectName, obj), nil
@@ -95,13 +77,7 @@ func (b *LocalStackBackend) HeadObject(bucketName, objectName string) (*gofakes3
 		Key:    aws.String(objectName),
 	})
 	if err != nil {
-		if isS3BucketNotFound(err) {
-			return nil, gofakes3.BucketNotFound(bucketName)
-		}
-		if isS3KeyNotFound(err) {
-			return nil, gofakes3.KeyNotFound(objectName)
-		}
-		return nil, fmt.Errorf("HeadObject %s/%s: %w", bucketName, objectName, err)
+		return nil, s3ErrorToGofakes3(err, bucketName, objectName)
 	}
 
 	return headOutputToObject(objectName, obj), nil
@@ -116,7 +92,12 @@ func (b *LocalStackBackend) CopyObject(srcBucket, srcKey, dstBucket, dstKey stri
 		CopySource: aws.String(srcBucket + "/" + srcKey),
 	})
 	if err != nil {
-		return gofakes3.CopyObjectResult{}, err
+		// Source not found errors (key or bucket) should reference the source
+		if isS3KeyNotFound(err) || isS3BucketNotFound(err) {
+			return gofakes3.CopyObjectResult{}, s3ErrorToGofakes3(err, srcBucket, srcKey)
+		}
+		// Other errors (permissions, etc.) reference the destination
+		return gofakes3.CopyObjectResult{}, s3ErrorToGofakes3(err, dstBucket, dstKey)
 	}
 
 	return gofakes3.CopyObjectResult{}, nil
@@ -127,7 +108,7 @@ func (b *LocalStackBackend) ListBuckets() ([]gofakes3.BucketInfo, error) {
 
 	result, err := b.client.ListBuckets(ctx, &s3.ListBucketsInput{})
 	if err != nil {
-		return nil, err
+		return nil, s3ErrorToGofakes3(err, "", "")
 	}
 
 	buckets := make([]gofakes3.BucketInfo, 0, len(result.Buckets))
@@ -164,7 +145,7 @@ func (b *LocalStackBackend) ListBucket(name string, prefix *gofakes3.Prefix, pag
 
 	result, err := b.client.ListObjectsV2(ctx, input)
 	if err != nil {
-		return nil, err
+		return nil, s3ErrorToGofakes3(err, name, "")
 	}
 
 	var objects []*gofakes3.Content
@@ -216,7 +197,7 @@ func (b *LocalStackBackend) BucketExists(name string) (bool, error) {
 		if isS3BucketNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("HeadBucket %s: %w", name, err)
+		return false, s3ErrorToGofakes3(err, name, "")
 	}
 	return true, nil
 }
@@ -236,7 +217,7 @@ func (b *LocalStackBackend) CreateBucket(name string) error {
 	}
 
 	_, err := b.client.CreateBucket(ctx, input)
-	return err
+	return s3ErrorToGofakes3(err, name, "")
 }
 
 func (b *LocalStackBackend) DeleteBucket(name string) error {
@@ -245,7 +226,7 @@ func (b *LocalStackBackend) DeleteBucket(name string) error {
 	_, err := b.client.DeleteBucket(ctx, &s3.DeleteBucketInput{
 		Bucket: aws.String(name),
 	})
-	return err
+	return s3ErrorToGofakes3(err, name, "")
 }
 
 func (b *LocalStackBackend) ForceDeleteBucket(name string) error {
@@ -259,7 +240,7 @@ func (b *LocalStackBackend) ForceDeleteBucket(name string) error {
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return err
+			return s3ErrorToGofakes3(err, name, "")
 		}
 
 		if len(page.Contents) > 0 {
@@ -277,7 +258,7 @@ func (b *LocalStackBackend) ForceDeleteBucket(name string) error {
 				},
 			})
 			if err != nil {
-				return err
+				return s3ErrorToGofakes3(err, name, "")
 			}
 		}
 	}
@@ -286,7 +267,7 @@ func (b *LocalStackBackend) ForceDeleteBucket(name string) error {
 	_, err := b.client.DeleteBucket(ctx, &s3.DeleteBucketInput{
 		Bucket: aws.String(name),
 	})
-	return err
+	return s3ErrorToGofakes3(err, name, "")
 }
 
 func (b *LocalStackBackend) PutObject(bucketName, objectName string, meta map[string]string, input io.Reader, size int64, conditions *gofakes3.PutConditions) (gofakes3.PutObjectResult, error) {
@@ -309,7 +290,7 @@ func (b *LocalStackBackend) PutObject(bucketName, objectName string, meta map[st
 
 	result, err := b.client.PutObject(ctx, putInput)
 	if err != nil {
-		return gofakes3.PutObjectResult{}, err
+		return gofakes3.PutObjectResult{}, s3ErrorToGofakes3(err, bucketName, objectName)
 	}
 
 	var versionID gofakes3.VersionID
@@ -329,7 +310,7 @@ func (b *LocalStackBackend) DeleteObject(bucketName, objectName string) (gofakes
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(objectName),
 	})
-	return gofakes3.ObjectDeleteResult{}, err
+	return gofakes3.ObjectDeleteResult{}, s3ErrorToGofakes3(err, bucketName, objectName)
 }
 
 func (b *LocalStackBackend) DeleteMulti(bucketName string, objects ...string) (gofakes3.MultiDeleteResult, error) {
@@ -349,5 +330,55 @@ func (b *LocalStackBackend) DeleteMulti(bucketName string, objects ...string) (g
 		},
 	})
 
-	return gofakes3.MultiDeleteResult{}, err
+	return gofakes3.MultiDeleteResult{}, s3ErrorToGofakes3(err, bucketName, "")
+}
+
+// s3ErrorCode extracts the S3 error code from an AWS SDK error.
+// Returns empty string if the error doesn't have an error code.
+func s3ErrorCode(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.ErrorCode()
+	}
+	return ""
+}
+
+// s3ErrorToGofakes3 converts an AWS SDK error to a gofakes3 error.
+// Since both use the same S3 error code strings, we can cast directly.
+// Special cases like NoSuchBucket/NoSuchKey need resource names for proper error messages.
+func s3ErrorToGofakes3(err error, bucketName, objectName string) error {
+	if err == nil {
+		return nil
+	}
+
+	code := s3ErrorCode(err)
+	if code == "" {
+		// Log the original error for debugging before it becomes a generic InternalError
+		log.Printf("[NON-S3 ERROR] %s/%s : %v", bucketName, objectName, err)
+		return err
+	}
+
+	switch code {
+	// These need resource names for proper error messages
+	case "NoSuchBucket":
+		return gofakes3.BucketNotFound(bucketName)
+	case "NoSuchKey", "NotFound":
+		if objectName != "" {
+			return gofakes3.KeyNotFound(objectName)
+		}
+		return gofakes3.BucketNotFound(bucketName)
+	default:
+		// All other S3 error codes can be cast directly
+		return gofakes3.ErrorCode(code)
+	}
+}
+
+// isS3KeyNotFound checks if an error indicates the key was not found
+func isS3KeyNotFound(err error) bool {
+	return s3ErrorCode(err) == "NoSuchKey"
+}
+
+// isS3BucketNotFound checks if an error indicates the bucket was not found
+func isS3BucketNotFound(err error) bool {
+	return s3ErrorCode(err) == "NoSuchBucket"
 }
