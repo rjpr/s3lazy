@@ -10,7 +10,8 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o s3lazy .
 FROM alpine:latest
 
 # Install ca-certificates for HTTPS and create non-root user
-RUN apk --no-cache add ca-certificates && \
+# Curl to enable health checks
+RUN apk --no-cache add ca-certificates curl && \
     adduser -D -u 1000 s3lazy && \
     mkdir -p /data && \
     chown s3lazy:s3lazy /data
