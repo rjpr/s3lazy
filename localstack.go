@@ -50,7 +50,8 @@ func isS3KeyNotFound(err error) bool {
 // isS3BucketNotFound checks if an error indicates the bucket was not found
 func isS3BucketNotFound(err error) bool {
 	var noSuchBucket *s3types.NoSuchBucket
-	return errors.As(err, &noSuchBucket)
+	var notFound *s3types.NotFound
+	return errors.As(err, &noSuchBucket) || errors.As(err, &notFound)
 }
 
 func (b *LocalStackBackend) GetObject(bucketName, objectName string, rangeRequest *gofakes3.ObjectRangeRequest) (*gofakes3.Object, error) {
