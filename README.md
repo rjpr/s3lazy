@@ -1,6 +1,11 @@
 # s3lazy
 
-A lazy-loading S3 proxy that caches objects from AWS S3 on first access. Point your application at s3lazy instead of AWS, and objects are fetched and cached locally only when needed.
+[![Docker Image](https://img.shields.io/docker/v/rjpr/s3lazy?label=docker)](https://hub.docker.com/r/rjpr/s3lazy)
+[![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-rjpr%2Fs3lazy-blue?logo=github)](https://github.com/rjpr/s3lazy/pkgs/container/s3lazy)
+
+Ever accidentally broken a shared dev environment by modifying S3 objects during local testing?
+
+s3lazy is a lazy-loading S3 proxy. Point your app at it instead of AWS, and objects are fetched and stored locally on first access. Your changes stay isolated. Your teammates stay happy.
 
 ## Use Cases
 
@@ -41,7 +46,7 @@ docker run -p 9000:9000 \
   -e AWS_ACCESS_KEY_ID=your-key \
   -e AWS_SECRET_ACCESS_KEY=your-secret \
   -e S3LAZY_INIT_BUCKETS=my-bucket \
-  ghcr.io/rjpr/s3lazy
+  rjpr/s3lazy
 ```
 
 ### Docker Compose
@@ -49,7 +54,7 @@ docker run -p 9000:9000 \
 ```yaml
 services:
   s3lazy:
-    image: ghcr.io/rjpr/s3lazy
+    image: rjpr/s3lazy
     ports:
       - "9000:9000"
     volumes:
@@ -60,6 +65,8 @@ services:
       - S3LAZY_INIT_BUCKETS=my-bucket,another-bucket
       - S3LAZY_BUCKET_MAP=my-bucket:prod-bucket-name
 ```
+
+> **Tip:** Mount your AWS credentials with `-v ~/.aws:/home/s3lazy/.aws:ro` instead of using access keys. Set `AWS_PROFILE` if not using the default profile.
 
 ### From Source
 
