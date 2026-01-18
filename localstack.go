@@ -92,13 +92,7 @@ func (b *LocalStackBackend) CopyObject(srcBucket, srcKey, dstBucket, dstKey stri
 		CopySource: aws.String(srcBucket + "/" + srcKey),
 	})
 	if err != nil {
-		code := s3ErrorCode(err)
-		// Source not found errors (key or bucket) should reference the source
-		if code == "NoSuchKey" || code == "NoSuchBucket" {
-			return gofakes3.CopyObjectResult{}, s3ErrorToGofakes3(err, srcBucket, srcKey)
-		}
-		// Other errors (permissions, etc.) reference the destination
-		return gofakes3.CopyObjectResult{}, s3ErrorToGofakes3(err, dstBucket, dstKey)
+		return gofakes3.CopyObjectResult{}, s3ErrorToGofakes3(err, "", "")
 	}
 
 	return gofakes3.CopyObjectResult{}, nil
