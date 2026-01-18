@@ -349,8 +349,8 @@ func s3ErrorCode(err error) string {
 }
 
 // s3ErrorToGofakes3 converts an AWS SDK error to a gofakes3 error.
-// Since both use the same S3 error code strings, we can cast directly.
-// Special cases like NoSuchBucket/NoSuchKey need resource names for proper error messages.
+// NoSuchBucket/NoSuchKey need resource names for proper error messages;
+// all other codes pass through directly.
 func s3ErrorToGofakes3(err error, bucketName, objectName string) error {
 	if err == nil {
 		return nil
@@ -364,17 +364,11 @@ func s3ErrorToGofakes3(err error, bucketName, objectName string) error {
 	}
 
 	switch code {
-	// These need resource names for proper error messages
 	case "NoSuchBucket":
 		return gofakes3.BucketNotFound(bucketName)
-	case "NoSuchKey", "NotFound":
-		if objectName != "" {
-			return gofakes3.KeyNotFound(objectName)
-		}
-		return gofakes3.BucketNotFound(bucketName)
+	case "NoSuchKey":
+		return gofakes3.KeyNotFound(objectName)
 	default:
-		// All other S3 error codes can be cast directly
 		return gofakes3.ErrorCode(code)
 	}
 }
-
