@@ -209,8 +209,10 @@ func (b *LocalStackBackend) CreateBucket(name string) error {
 		Bucket: aws.String(name),
 	}
 
-	// For any region other than us-east-1, we must specify the LocationConstraint
-	if b.region != "" {
+	// For any region other than us-east-1, we must specify the LocationConstraint.
+	// This is an AWS quirk: us-east-1 is the "default" region and must NOT have
+	// a LocationConstraint specified, while all other regions require it.
+	if b.region != "" && b.region != "us-east-1" {
 		input.CreateBucketConfiguration = &s3types.CreateBucketConfiguration{
 			LocationConstraint: s3types.BucketLocationConstraint(b.region),
 		}
