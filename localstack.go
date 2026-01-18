@@ -92,8 +92,9 @@ func (b *LocalStackBackend) CopyObject(srcBucket, srcKey, dstBucket, dstKey stri
 		CopySource: aws.String(srcBucket + "/" + srcKey),
 	})
 	if err != nil {
+		code := s3ErrorCode(err)
 		// Source not found errors (key or bucket) should reference the source
-		if isS3KeyNotFound(err) || isS3BucketNotFound(err) {
+		if code == "NoSuchKey" || code == "NoSuchBucket" {
 			return gofakes3.CopyObjectResult{}, s3ErrorToGofakes3(err, srcBucket, srcKey)
 		}
 		// Other errors (permissions, etc.) reference the destination
@@ -194,7 +195,9 @@ func (b *LocalStackBackend) BucketExists(name string) (bool, error) {
 		Bucket: aws.String(name),
 	})
 	if err != nil {
-		if isS3BucketNotFound(err) {
+		code := s3ErrorCode(err)
+		// HeadBucket can return NotFound (HTTP 404) or NoSuchBucket
+		if code == "NoSuchBucket" || code == "NotFound" {
 			return false, nil
 		}
 		return false, s3ErrorToGofakes3(err, name, "")
@@ -375,12 +378,3 @@ func s3ErrorToGofakes3(err error, bucketName, objectName string) error {
 	}
 }
 
-// isS3KeyNotFound checks if an error indicates the key was not found
-func isS3KeyNotFound(err error) bool {
-	return s3ErrorCode(err) == "NoSuchKey"
-}
-
-// isS3BucketNotFound checks if an error indicates the bucket was not found
-func isS3BucketNotFound(err error) bool {
-	return s3ErrorCode(err) == "NoSuchBucket"
-}
