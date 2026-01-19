@@ -1,6 +1,6 @@
 # s3lazy
 
-[![Docker Image](https://img.shields.io/docker/v/rjpr/s3lazy?label=docker)](https://hub.docker.com/r/rjpr/s3lazy)
+[![Docker Image](https://img.shields.io/docker/v/rjpr/s3lazy?sort=semver&label=docker)](https://hub.docker.com/r/rjpr/s3lazy)
 [![GitHub Container Registry](https://img.shields.io/badge/ghcr.io-rjpr%2Fs3lazy-blue?logo=github)](https://github.com/rjpr/s3lazy/pkgs/container/s3lazy)
 
 Ever accidentally broken a shared dev environment by modifying S3 objects during local testing?
