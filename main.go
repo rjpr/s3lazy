@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3afero"
+	"github.com/johannesboyne/gofakes3/backend/s3mem"
 	"github.com/spf13/afero"
 )
 
@@ -90,9 +91,10 @@ func main() {
 	// Start server
 	log.Printf("Starting lazy-loading S3 proxy on %s", cfg.ListenAddr)
 	log.Printf("Backend type: %s", cfg.BackendType)
-	if cfg.BackendType == "local" {
+	switch cfg.BackendType {
+	case "disk":
 		log.Printf("Data directory: %s", cfg.DataDir)
-	} else {
+	case "localstack":
 		log.Printf("LocalStack endpoint: %s", cfg.LocalStackEndpoint)
 	}
 	log.Printf("Health check: http://localhost%s/health", cfg.ListenAddr)
@@ -124,8 +126,8 @@ func createLocalBackend(cfg *Config) (gofakes3.Backend, error) {
 		log.Printf("Using LocalStack backend at %s", cfg.LocalStackEndpoint)
 		return NewLocalStackBackend(cfg.LocalStackEndpoint, cfg.AWSRegion)
 
-	case "local":
-		log.Printf("Using disk-based backend at %s", cfg.DataDir)
+	case "disk":
+		log.Printf("Using disk backend at %s", cfg.DataDir)
 
 		// Ensure data directory exists
 		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
@@ -136,8 +138,12 @@ func createLocalBackend(cfg *Config) (gofakes3.Backend, error) {
 		fs := afero.NewBasePathFs(afero.NewOsFs(), cfg.DataDir)
 		return s3afero.MultiBucket(fs)
 
+	case "memory":
+		log.Printf("Using in-memory backend (ephemeral, data will not persist)")
+		return s3mem.New(), nil
+
 	default:
-		return nil, fmt.Errorf("unknown backend type: %q (valid options: local, localstack)", cfg.BackendType)
+		return nil, fmt.Errorf("unknown backend type: %q (valid options: disk, memory, localstack)", cfg.BackendType)
 	}
 }
 

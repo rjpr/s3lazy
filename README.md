@@ -88,8 +88,8 @@ export S3LAZY_INIT_BUCKETS=my-bucket
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `S3LAZY_LISTEN_ADDR` | `:9000` | HTTP listen address |
-| `S3LAZY_BACKEND` | `local` | Backend type: `local` or `localstack` |
-| `S3LAZY_DATA_DIR` | `/data` | Data directory for local backend |
+| `S3LAZY_BACKEND` | `disk` | Backend type: `disk`, `memory`, or `localstack` |
+| `S3LAZY_DATA_DIR` | `/data` | Data directory for disk backend |
 | `S3LAZY_LOCALSTACK_ENDPOINT` | `http://localhost:4566` | LocalStack endpoint |
 | `S3LAZY_AWS_REGION` | `us-east-1` | AWS region for upstream |
 | `S3LAZY_CONFIG_FILE` | | Path to YAML config file |
@@ -108,7 +108,7 @@ For complex configurations, use a YAML file:
 
 ```yaml
 listen_addr: ":9000"
-backend_type: "local"
+backend_type: "disk"
 data_dir: "/data"
 aws_region: "us-east-1"
 
@@ -125,13 +125,21 @@ Set `S3LAZY_CONFIG_FILE=/path/to/config.yaml` to use it.
 
 ## Backend Types
 
-### Local (Disk-Based)
+### Disk (Default)
 
-The default backend stores cached objects on local disk. Objects persist across restarts.
+Stores cached objects on local disk. Objects persist across restarts.
 
 ```bash
-S3LAZY_BACKEND=local
+S3LAZY_BACKEND=disk
 S3LAZY_DATA_DIR=/data
+```
+
+### Memory
+
+In-memory storage. Fast but ephemeral—data is lost when the process stops. Useful for CI/CD pipelines or testing.
+
+```bash
+S3LAZY_BACKEND=memory
 ```
 
 ### LocalStack
@@ -223,6 +231,10 @@ s3lazy logs cache hits and misses:
 [CACHE MISS] my-bucket/path/to/new-file.txt - fetching from AWS
 [CACHING] my-bucket/path/to/new-file.txt (1024 bytes)
 ```
+
+## Acknowledgements
+
+Built on [gofakes3](https://github.com/johannesboyne/gofakes3), a fake S3 server implementation in Go.
 
 ## License
 

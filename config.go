@@ -13,7 +13,7 @@ type Config struct {
 	// Server settings
 	ListenAddr string `yaml:"listen_addr"`
 
-	// Backend selection: "local" (disk-based) or "localstack" (external LocalStack)
+	// Backend selection: "disk", "memory", or "localstack"
 	BackendType string `yaml:"backend_type"`
 
 	// Local disk backend settings
@@ -36,7 +36,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		ListenAddr:         ":9000",
-		BackendType:        "local",
+		BackendType:        "disk",
 		DataDir:            "/data",
 		LocalStackEndpoint: "http://localhost:4566",
 		AWSRegion:          "us-east-1",
