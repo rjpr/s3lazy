@@ -232,6 +232,36 @@ s3lazy logs cache hits and misses:
 [CACHING] my-bucket/path/to/new-file.txt (1024 bytes)
 ```
 
+## Development
+
+### Running Tests
+
+```bash
+# Run unit tests (fast, no Docker required)
+make test-unit
+
+# Run all tests including integration (requires Docker)
+make test-all
+
+# Run tests with coverage report
+make coverage
+```
+
+### Test Structure
+
+- **Unit tests** (`*_test.go`): Test core logic with in-memory mocks
+- **Integration tests** (`localstack_test.go`): Test against real LocalStack via testcontainers
+  - Requires Docker
+  - Automatically spins up/tears down LocalStack containers
+  - Skips gracefully if Docker unavailable
+
+### Coverage
+
+```bash
+make coverage       # Show coverage by function
+make coverage-html  # Generate HTML report
+```
+
 ## Acknowledgements
 
 Built on [gofakes3](https://github.com/johannesboyne/gofakes3), a fake S3 server implementation in Go.
